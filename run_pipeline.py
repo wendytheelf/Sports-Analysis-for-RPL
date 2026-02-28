@@ -58,6 +58,32 @@ def parse_args() -> argparse.Namespace:
         default=DATA_OUTPUTS,
         help="Directory for timestamped outputs",
     )
+    parser.add_argument(
+        "--model_type",
+        type=str,
+        default="baseline",
+        choices=("baseline", "linear"),
+        help="Prediction model: baseline (rating diff) or linear (sklearn Ridge)",
+    )
+    parser.add_argument(
+        "--rating_col",
+        type=str,
+        default="rating_shrunk",
+        choices=("rating_shrunk", "rating_sos"),
+        help="Rating column for ranking and prediction: rating_shrunk (default) or rating_sos (SoS-adjusted)",
+    )
+    parser.add_argument(
+        "--sos_weight",
+        type=float,
+        default=0.3,
+        help="SoS adjustment weight: strength = rating_shrunk + sos_weight * opponent_avg (default: 0.3)",
+    )
+    parser.add_argument(
+        "--sos_iters",
+        type=int,
+        default=5,
+        help="Number of iterative SoS updates (default: 5)",
+    )
     return parser.parse_args()
 
 
@@ -67,6 +93,10 @@ def run_pipeline(
     derby_file: Optional[str],
     alpha: float,
     out_dir: Path,
+    model_type: str = "baseline",
+    rating_col: str = "rating_shrunk",
+    sos_weight: float = 0.3,
+    sos_iters: int = 5,
 ) -> None:
     data_dir = data_dir.resolve()
     out_dir = out_dir.resolve()
@@ -92,15 +122,31 @@ def run_pipeline(
             )
     derby = load_derby_csv(derby_path)
 
-    # 3) Compute team ratings
-    team_stats = compute_ratings(train, alpha=alpha)
+    # 3) Compute team ratings (includes rating_shrunk and rating_sos)
+    team_stats = compute_ratings(
+        train, alpha=alpha, sos_weight=sos_weight, sos_iters=sos_iters
+    )
 
-    # 4) Rank all teams
-    rankings = build_rankings(team_stats, rating_col="rating_shrunk")
+    # 4) Rank all teams by chosen rating column
+    rankings = build_rankings(team_stats, rating_col=rating_col)
 
     # 5) Predict derbies
-    predictions = predict_derbies(derby, team_stats, rating_col="rating_shrunk")
-    predictions = build_predictions_csv(predictions)
+    if model_type == "linear":
+        from src.ml_model import (
+            build_training_dataset,
+            train_linear_model,
+            build_derby_features,
+            predict_derbies_ml,
+        )
+        X, y = build_training_dataset(train, team_stats, rating_col=rating_col)
+        model = train_linear_model(X, y)
+        X_derby = build_derby_features(derby, team_stats, rating_col=rating_col)
+        predictions = predict_derbies_ml(model, derby, X_derby)
+        if "Team1_WinMargin" not in predictions.columns:
+            predictions = build_predictions_csv(predictions)
+    else:
+        predictions = predict_derbies(derby, team_stats, rating_col=rating_col)
+        predictions = build_predictions_csv(predictions)
 
     # 6) Save to out_dir with timestamp
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -136,6 +182,10 @@ def main() -> None:
         derby_file=args.derby,
         alpha=args.alpha,
         out_dir=args.out_dir,
+        model_type=args.model_type,
+        rating_col=args.rating_col,
+        sos_weight=args.sos_weight,
+        sos_iters=args.sos_iters,
     )
 
 

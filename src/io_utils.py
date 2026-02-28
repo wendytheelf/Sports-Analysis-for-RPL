@@ -13,20 +13,28 @@ TRAIN_HOME_TEAM = "home_team"
 TRAIN_AWAY_TEAM = "away_team"
 TRAIN_HOME_SCORE = "home_score"
 TRAIN_AWAY_SCORE = "away_score"
+TRAIN_HOME_ID = "home_id"
+TRAIN_AWAY_ID = "away_id"
 
 DERBY_TEAM1 = "team1"
 DERBY_TEAM2 = "team2"
 DERBY_MATCH_ID = "match_id"
+DERBY_TEAM1_ID = "team1_id"
+DERBY_TEAM2_ID = "team2_id"
 
 # Possible column name variants (case-insensitive match)
 HOME_TEAM_VARIANTS = ("hometeam", "home_team", "home team")
 AWAY_TEAM_VARIANTS = ("awayteam", "away_team", "away team")
 HOME_SCORE_VARIANTS = ("homepts", "home_pts", "home score", "homescore", "home_score")
 AWAY_SCORE_VARIANTS = ("awaypts", "away_pts", "away score", "awayscore", "away_score")
+HOME_ID_VARIANTS = ("homeid", "home_id", "home id")
+AWAY_ID_VARIANTS = ("awayid", "away_id", "away id")
 
 TEAM1_VARIANTS = ("team1", "teama", "home", "team_a")
 TEAM2_VARIANTS = ("team2", "teamb", "away", "team_b")
 MATCH_ID_VARIANTS = ("gameid", "matchid", "id", "game_id", "match_id")
+TEAM1_ID_VARIANTS = ("team1id", "team1_id", "team1 id")
+TEAM2_ID_VARIANTS = ("team2id", "team2_id", "team2 id")
 
 
 def _normalize(col: str) -> str:
@@ -53,6 +61,8 @@ def infer_train_schema(df: pd.DataFrame) -> dict[str, str]:
     away_team = _find_column(df, AWAY_TEAM_VARIANTS)
     home_score = _find_column(df, HOME_SCORE_VARIANTS)
     away_score = _find_column(df, AWAY_SCORE_VARIANTS)
+    home_id = _find_column(df, HOME_ID_VARIANTS)
+    away_id = _find_column(df, AWAY_ID_VARIANTS)
 
     if home_team is None:
         raise ValueError(
@@ -80,6 +90,10 @@ def infer_train_schema(df: pd.DataFrame) -> dict[str, str]:
     mapping[TRAIN_AWAY_TEAM] = away_team
     mapping[TRAIN_HOME_SCORE] = home_score
     mapping[TRAIN_AWAY_SCORE] = away_score
+    if home_id is not None:
+        mapping[TRAIN_HOME_ID] = home_id
+    if away_id is not None:
+        mapping[TRAIN_AWAY_ID] = away_id
     return mapping
 
 
@@ -92,6 +106,8 @@ def infer_derby_schema(df: pd.DataFrame) -> dict[str, str]:
     team1 = _find_column(df, TEAM1_VARIANTS)
     team2 = _find_column(df, TEAM2_VARIANTS)
     match_id = _find_column(df, MATCH_ID_VARIANTS)
+    team1_id = _find_column(df, TEAM1_ID_VARIANTS)
+    team2_id = _find_column(df, TEAM2_ID_VARIANTS)
 
     if team1 is None:
         raise ValueError(
@@ -109,13 +125,17 @@ def infer_derby_schema(df: pd.DataFrame) -> dict[str, str]:
     mapping[DERBY_TEAM2] = team2
     if match_id:
         mapping[DERBY_MATCH_ID] = match_id
+    if team1_id is not None:
+        mapping[DERBY_TEAM1_ID] = team1_id
+    if team2_id is not None:
+        mapping[DERBY_TEAM2_ID] = team2_id
     return mapping
 
 
 def load_train_csv(path: Path) -> pd.DataFrame:
     """
     Load train CSV and return DataFrame with canonical column names
-    (home_team, away_team, home_score, away_score). Preserves all original columns.
+    (home_team, away_team, home_score, away_score, and optionally home_id, away_id). Preserves all original columns.
     """
     df = pd.read_csv(path)
     schema = infer_train_schema(df)
@@ -124,13 +144,17 @@ def load_train_csv(path: Path) -> pd.DataFrame:
     out[TRAIN_AWAY_TEAM] = df[schema[TRAIN_AWAY_TEAM]]
     out[TRAIN_HOME_SCORE] = pd.to_numeric(df[schema[TRAIN_HOME_SCORE]], errors="coerce")
     out[TRAIN_AWAY_SCORE] = pd.to_numeric(df[schema[TRAIN_AWAY_SCORE]], errors="coerce")
+    if TRAIN_HOME_ID in schema:
+        out[TRAIN_HOME_ID] = pd.to_numeric(df[schema[TRAIN_HOME_ID]], errors="coerce")
+    if TRAIN_AWAY_ID in schema:
+        out[TRAIN_AWAY_ID] = pd.to_numeric(df[schema[TRAIN_AWAY_ID]], errors="coerce")
     return out
 
 
 def load_derby_csv(path: Path) -> pd.DataFrame:
     """
     Load derby/test CSV and return DataFrame with canonical columns
-    (team1, team2, and optionally match_id). Preserves all original columns.
+    (team1, team2, optionally match_id, team1_id, team2_id). Preserves all original columns.
     """
     df = pd.read_csv(path)
     schema = infer_derby_schema(df)
@@ -139,6 +163,10 @@ def load_derby_csv(path: Path) -> pd.DataFrame:
     out[DERBY_TEAM2] = df[schema[DERBY_TEAM2]]
     if DERBY_MATCH_ID in schema:
         out[DERBY_MATCH_ID] = df[schema[DERBY_MATCH_ID]]
+    if DERBY_TEAM1_ID in schema:
+        out[DERBY_TEAM1_ID] = pd.to_numeric(df[schema[DERBY_TEAM1_ID]], errors="coerce")
+    if DERBY_TEAM2_ID in schema:
+        out[DERBY_TEAM2_ID] = pd.to_numeric(df[schema[DERBY_TEAM2_ID]], errors="coerce")
     return out
 
 

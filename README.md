@@ -27,13 +27,27 @@ python run_pipeline.py --data_dir data/raw
 
 **Options:**
 
-| Option        | Default              | Description                                      |
-|---------------|----------------------|--------------------------------------------------|
-| `--data_dir`  | `data/raw`           | Directory containing Train and derby/test file   |
-| `--train`     | auto (`Train.csv`)   | Train filename                                   |
-| `--derby`     | auto-detect          | Derby filename (Derbies.csv, Test.csv, Predictions.csv) |
-| `--alpha`     | 5                    | Shrinkage for rating (higher = more shrink toward 0)    |
-| `--out_dir`   | `data/outputs`      | Directory for timestamped outputs                |
+| Option         | Default              | Description                                      |
+|----------------|----------------------|--------------------------------------------------|
+| `--data_dir`   | `data/raw`           | Directory containing Train and derby/test file  |
+| `--train`      | auto (`Train.csv`)   | Train filename                                  |
+| `--derby`      | auto-detect          | Derby filename (Derbies.csv, Test.csv, Predictions.csv) |
+| `--alpha`      | 5                    | Shrinkage for rating (higher = more shrink toward 0)    |
+| `--out_dir`    | `data/outputs`      | Directory for timestamped outputs               |
+| `--model_type` | `baseline`           | `baseline` (rating diff) or `linear` (Ridge regression) |
+| `--rating_col` | `rating_shrunk`      | `rating_shrunk` (default) or `rating_sos` (SoS-adjusted) |
+| `--sos_weight` | 0.3                  | SoS adjustment weight (used when `rating_sos` is computed) |
+| `--sos_iters`  | 5                    | Number of iterative SoS updates |
+
+### Strength of Schedule (SoS) adjusted ratings
+
+To use **Strength of Schedule (SoS)** adjusted ratings for ranking and prediction, pass `--rating_col rating_sos`. SoS adjusts raw ratings by the average strength of each team’s opponents: teams that play stronger schedules get a boost. The pipeline computes `rating_sos` iteratively (see `config.py`: `SOS_WEIGHT`, `SOS_ITERS`). Rankings and both baseline and linear predictions then use `rating_sos` instead of `rating_shrunk`.
+
+Example with SoS and linear model (optional SoS tuning):
+```bash
+python run_pipeline.py --data_dir data/raw --model_type linear --rating_col rating_sos
+python run_pipeline.py --data_dir data/raw --model_type linear --rating_col rating_sos --sos_weight 0.5 --sos_iters 5
+```
 
 Example with custom alpha:
 
@@ -69,8 +83,8 @@ python run_pipeline.py --data_dir data/raw --alpha 10
 
 1. **Load** — `src/io_utils.py`: infer schema and load Train + derby CSVs.
 2. **Features** — `src/feature_engineering.py`: optional train/derby feature hooks (baseline: pass-through).
-3. **Rating** — `src/rating.py`: per-team aggregates (games, wins, avg margin, home/away splits) and baseline rating with shrinkage: `rating_shrunk = (games_played / (games_played + alpha)) * avg_margin`.
-4. **Rank** — `src/rank.py`: rank all teams by `rating_shrunk` (1 = best).
+3. **Rating** — `src/rating.py`: per-team aggregates (games, wins, avg margin, home/away splits), baseline rating with shrinkage (`rating_shrunk`), and optional SoS-adjusted `rating_sos` (iterative: strength = rating_shrunk + sos_weight × mean(opponent strength)).
+4. **Rank** — `src/rank.py`: rank all teams by the chosen rating column (e.g. `rating_shrunk` or `rating_sos`; 1 = best).
 5. **Predict** — `src/predict.py`: neutral-site derby prediction; predicted margin = rating(Team1) − rating(Team2); winner and margin derived from that (ties → Team1, margin 0).
 6. **Package** — `src/package_submission.py`: build `Submission.zip`.
 

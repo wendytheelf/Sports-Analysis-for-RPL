@@ -17,6 +17,11 @@ DEFAULT_DERBY_CANDIDATES = ("Derbies.csv", "Test.csv", "Predictions.csv")
 # rating_shrunk = (games_played / (games_played + alpha)) * avg_margin
 ALPHA = 5
 
+# Strength of Schedule (SoS) adjusted rating:
+# rating_sos = rating_shrunk + sos_weight * opponent_strength_avg (iterative)
+SOS_WEIGHT = 0.5
+SOS_ITERS = 5
+
 # Output filenames in project root (for submission)
 OUTPUT_PREDICTIONS_CSV = "Predictions.csv"
 OUTPUT_RANKINGS_XLSX = "Rankings.xlsx"
